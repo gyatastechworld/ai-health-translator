@@ -1,6 +1,48 @@
 from django.urls import path
+
 from . import views
 
+
 urlpatterns = [
-    path("hello/", views.hello),
+    path(
+        "upload/",
+        views.upload_report,
+        name="upload_report"
+    ),
+
+    path(
+        "reports/",
+        views.report_list,
+        name="report_list"
+    ),
+
+    path(
+        "reports/<int:report_id>/",
+        views.report_detail,
+        name="report_detail"
+    ),
+
+    path(
+        "reports/<int:report_id>/edit/",
+        views.report_update,
+        name="report_update"
+    ),
+
+    path(
+        "reports/<int:report_id>/delete/",
+        views.report_delete,
+        name="report_delete"
+    ),
+
+    path(
+        "profile/",
+        views.profile,
+        name="profile"
+    ),
+
+    path(
+        "profile/password/",
+        views.change_password,
+        name="change_password"
+    ),
 ]

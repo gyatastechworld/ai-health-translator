@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Edit Report</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <div class="max-w-2xl mx-auto py-12 px-6">
+
+        <div class="bg-white rounded-xl shadow-md p-8">
+
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                Edit Medical Report
+            </h1>
+
+            <p class="text-gray-500 mb-8">
+                Update the information of your medical report.
+            </p>
+
+            <form method="POST"
+                  enctype="multipart/form-data"
+                  class="space-y-6">
+
+                {% csrf_token %}
+
+                {{ form.as_p }}
+
+                <div class="flex gap-4 pt-4">
+
+                    <a
+                        href="{% url 'report_detail' report.id %}"
+                        class="px-5 py-3 bg-gray-200 text-gray-700 rounded-lg
+                               hover:bg-gray-300 transition"
+                    >
+                        Cancel
+                    </a>
+
+                    <button
+                        type="submit"
+                        class="px-5 py-3 bg-green-600 text-white rounded-lg
+                               hover:bg-green-700 transition"
+                    >
+                        Save Changes
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>

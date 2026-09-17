@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Report Detail</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <div class="max-w-3xl mx-auto py-12 px-6">
+
+        <div class="bg-white rounded-xl shadow-md p-8">
+
+            <h1 class="text-2xl font-bold text-gray-800 mb-6">
+                Medical Report
+            </h1>
+
+            <p>
+                <strong>Category:</strong>
+                {{ report.get_category_display }}
+            </p>
+
+            <p>
+                <strong>Status:</strong>
+                {{ report.get_status_display }}
+            </p>
+
+            <p>
+                <strong>Uploaded:</strong>
+                {{ report.uploaded_at }}
+            </p>
+
+            <div class="mt-6">
+                <h2 class="font-semibold text-gray-800 mb-2">
+                    Report Text
+                </h2>
+
+                <p class="text-gray-600">
+                    {{ report.raw_text }}
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

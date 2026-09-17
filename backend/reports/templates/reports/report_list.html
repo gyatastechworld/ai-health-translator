@@ -1,0 +1,346 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>My Reports</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+    <div class="max-w-4xl mx-auto py-12 px-6">
+
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+
+            <h1 class="text-3xl font-bold text-gray-800">
+                My Medical Reports
+            </h1>
+
+            <a
+                href="{% url 'upload_report' %}"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg
+                       hover:bg-blue-700 transition"
+            >
+                Upload Report
+            </a>
+
+        </div>
+
+
+        <!-- Search and Filters -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+
+            <form
+                method="GET"
+                class="flex flex-col md:flex-row gap-4"
+            >
+
+                <!-- Search -->
+                <input
+                    type="text"
+                    name="search"
+                    value="{{ search }}"
+                    placeholder="Search reports..."
+                    class="flex-1 border border-gray-300 rounded-lg
+                           px-4 py-3
+                           focus:outline-none
+                           focus:ring-2
+                           focus:ring-blue-500"
+                >
+
+
+                <!-- Category -->
+                <select
+                    name="category"
+                    class="border border-gray-300 rounded-lg
+                           px-4 py-3 bg-white
+                           focus:outline-none
+                           focus:ring-2
+                           focus:ring-blue-500"
+                >
+
+                    <option value="">
+                        All Categories
+                    </option>
+
+                    <option
+                        value="blood_test"
+                        {% if category == "blood_test" %}selected{% endif %}
+                    >
+                        Blood Test
+                    </option>
+
+                    <option
+                        value="prescription"
+                        {% if category == "prescription" %}selected{% endif %}
+                    >
+                        Prescription
+                    </option>
+
+                    <option
+                        value="discharge_summary"
+                        {% if category == "discharge_summary" %}selected{% endif %}
+                    >
+                        Discharge Summary
+                    </option>
+
+                    <option
+                        value="other"
+                        {% if category == "other" %}selected{% endif %}
+                    >
+                        Other
+                    </option>
+
+                </select>
+
+
+                <!-- Status -->
+                <select
+                    name="status"
+                    class="border border-gray-300 rounded-lg
+                           px-4 py-3 bg-white
+                           focus:outline-none
+                           focus:ring-2
+                           focus:ring-blue-500"
+                >
+
+                    <option value="">
+                        All Statuses
+                    </option>
+
+                    <option
+                        value="uploaded"
+                        {% if status == "uploaded" %}selected{% endif %}
+                    >
+                        Uploaded
+                    </option>
+
+                    <option
+                        value="reviewed"
+                        {% if status == "reviewed" %}selected{% endif %}
+                    >
+                        Reviewed
+                    </option>
+
+                </select>
+
+
+                <!-- Filter Button -->
+                <button
+                    type="submit"
+                    class="bg-blue-600 text-white px-6 py-3
+                           rounded-lg
+                           hover:bg-blue-700 transition"
+                >
+                    Filter
+                </button>
+
+            </form>
+
+        </div>
+
+
+        <!-- Reports -->
+
+        {% if reports %}
+
+            <div class="space-y-4">
+
+                {% for report in reports %}
+
+                    <div class="bg-white rounded-xl shadow-md p-6">
+
+                        <div class="flex justify-between items-start">
+
+                            <div>
+
+                                <h2 class="text-xl font-semibold text-gray-800">
+                                    {{ report.get_category_display }}
+                                </h2>
+
+                                <p class="text-gray-500 mt-1">
+                                    Status:
+                                    {{ report.get_status_display }}
+                                </p>
+
+                                <p class="text-gray-400 text-sm mt-1">
+                                    Uploaded:
+                                    {{ report.uploaded_at }}
+                                </p>
+
+                            </div>
+
+
+                            <div class="flex gap-4">
+
+                                <a
+                                    href="{% url 'report_detail' report.id %}"
+                                    class="text-blue-600 hover:underline"
+                                >
+                                    View
+                                </a>
+
+                                <a
+                                    href="{% url 'report_update' report.id %}"
+                                    class="text-green-600 hover:underline"
+                                >
+                                    Edit
+                                </a>
+
+                                <a
+                                    href="{% url 'report_delete' report.id %}"
+                                    class="text-red-600 hover:underline"
+                                >
+                                    Delete
+                                </a>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </div>
+
+
+            <!-- Pagination -->
+
+            {% if page_obj.paginator.num_pages > 1 %}
+
+                <div class="flex justify-center items-center gap-2 mt-8">
+
+                    <!-- Previous Button -->
+
+                    {% if page_obj.has_previous %}
+
+                        <a
+                            href="?search={{ search }}&category={{ category }}&status={{ status }}&page={{ page_obj.previous_page_number }}"
+                            class="px-4 py-2 bg-white border border-gray-300
+                                   rounded-lg text-gray-700
+                                   hover:bg-gray-100 transition"
+                        >
+                            ← Previous
+                        </a>
+
+                    {% else %}
+
+                        <span
+                            class="px-4 py-2 bg-gray-100 border border-gray-200
+                                   rounded-lg text-gray-400 cursor-not-allowed"
+                        >
+                            ← Previous
+                        </span>
+
+                    {% endif %}
+
+
+                    <!-- Page Numbers -->
+
+                    {% for num in page_obj.paginator.page_range %}
+
+                        {% if page_obj.number == num %}
+
+                            <!-- Current Page -->
+
+                            <span
+                                class="px-4 py-2 bg-blue-600 text-white
+                                       rounded-lg font-semibold"
+                            >
+                                {{ num }}
+                            </span>
+
+                        {% else %}
+
+                            <!-- Other Pages -->
+
+                            <a
+                                href="?search={{ search }}&category={{ category }}&status={{ status }}&page={{ num }}"
+                                class="px-4 py-2 bg-white border border-gray-300
+                                       rounded-lg text-gray-700
+                                       hover:bg-gray-100 transition"
+                            >
+                                {{ num }}
+                            </a>
+
+                        {% endif %}
+
+                    {% endfor %}
+
+
+                    <!-- Next Button -->
+
+                    {% if page_obj.has_next %}
+
+                        <a
+                            href="?search={{ search }}&category={{ category }}&status={{ status }}&page={{ page_obj.next_page_number }}"
+                            class="px-4 py-2 bg-white border border-gray-300
+                                   rounded-lg text-gray-700
+                                   hover:bg-gray-100 transition"
+                        >
+                            Next →
+                        </a>
+
+                    {% else %}
+
+                        <span
+                            class="px-4 py-2 bg-gray-100 border border-gray-200
+                                   rounded-lg text-gray-400 cursor-not-allowed"
+                        >
+                            Next →
+                        </span>
+
+                    {% endif %}
+
+                </div>
+
+            {% endif %}
+
+
+        {% else %}
+
+            <!-- Empty State -->
+
+            <div class="bg-white rounded-xl shadow-md p-8 text-center">
+
+                {% if search or category or status %}
+
+                    <p class="text-gray-500">
+                        No reports found matching your filters.
+                    </p>
+
+                {% else %}
+
+                    <p class="text-gray-500">
+                        You have no reports yet.
+                    </p>
+
+                    <a
+                        href="{% url 'upload_report' %}"
+                        class="inline-block mt-4
+                               bg-blue-600 text-white
+                               px-4 py-2 rounded-lg
+                               hover:bg-blue-700 transition"
+                    >
+                        Upload Your First Report
+                    </a>
+
+                {% endif %}
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</body>
+
+</html>
+
