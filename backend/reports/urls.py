@@ -35,6 +35,12 @@ urlpatterns = [
     ),
 
     path(
+        "reports/<int:report_id>/translate/",
+        views.translate_report_view,
+        name="translate_report"
+    ),
+
+    path(
         "profile/",
         views.profile,
         name="profile"

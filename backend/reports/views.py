@@ -1,11 +1,36 @@
+from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
 from django.contrib.auth.forms import PasswordChangeForm
+from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
 
+from .extraction import extract_text_from_report, ExtractionError
 from .forms import ReportForm
 from .models import Report
+from .services import translate_report
+
+
+def _run_extraction(request, report):
+    """
+    Attempt to populate report.extracted_text from its attached file.
+
+    Skipped when there's no file, or when the user already pasted
+    their own report text - we never want an automated OCR/LLM guess
+    to silently override text a person typed themselves.
+    """
+
+    if not report.file or report.raw_text.strip():
+        return
+
+    try:
+        report.extracted_text = extract_text_from_report(report)
+        report.save(update_fields=["extracted_text"])
+
+    except ExtractionError as exc:
+        report.status = "failed"
+        report.save(update_fields=["status"])
+        messages.error(request, str(exc))
 
 
 @login_required
@@ -18,6 +43,11 @@ def upload_report(request):
             report = form.save(commit=False)
             report.user = request.user
             report.save()
+
+            _run_extraction(request, report)
+
+            if report.status != "failed":
+                messages.success(request, "Report uploaded successfully.")
 
             return redirect("report_list")
 
@@ -83,7 +113,8 @@ def report_list(request):
 @login_required
 def report_detail(request, report_id):
 
-    report = Report.objects.get(
+    report = get_object_or_404(
+        Report,
         id=report_id,
         user=request.user
     )
@@ -98,7 +129,8 @@ def report_detail(request, report_id):
 @login_required
 def report_update(request, report_id):
 
-    report = Report.objects.get(
+    report = get_object_or_404(
+        Report,
         id=report_id,
         user=request.user
     )
@@ -117,12 +149,24 @@ def report_update(request, report_id):
 
             updated_report = form.save()
 
-            if (
-                old_file
-                and old_file.name
-                and old_file.name != updated_report.file.name
-            ):
+            old_file_name = old_file.name if old_file else None
+            new_file_name = (
+                updated_report.file.name if updated_report.file else None
+            )
+            file_changed = old_file_name != new_file_name
+
+            if old_file and old_file_name and old_file_name != new_file_name:
                 old_file.delete(save=False)
+
+            if file_changed:
+                # The previous extracted_text belonged to the old file -
+                # it no longer describes what's attached now.
+                updated_report.extracted_text = ""
+                updated_report.save(update_fields=["extracted_text"])
+                _run_extraction(request, updated_report)
+
+            if updated_report.status != "failed":
+                messages.success(request, "Report updated successfully.")
 
             return redirect(
                 "report_detail",
@@ -146,9 +190,44 @@ def report_update(request, report_id):
 
 
 @login_required
+def translate_report_view(request, report_id):
+
+    report = get_object_or_404(
+        Report,
+        id=report_id,
+        user=request.user
+    )
+
+    if request.method == "POST":
+
+        try:
+            translate_report(report)
+            messages.success(request, "Report translated successfully.")
+
+        except ValueError as exc:
+            # No text available to translate (e.g. extraction never ran
+            # and nothing was typed in manually).
+            messages.error(request, str(exc))
+
+        except Exception:
+            # translate_report() already recorded the details on the
+            # Translation object (processing_status="failed" +
+            # error_message) before re-raising, so we just need to stop
+            # this from becoming a 500 and tell the user something went
+            # wrong.
+            messages.error(
+                request,
+                "Translation failed. Please try again in a moment."
+            )
+
+    return redirect("report_detail", report_id=report.id)
+
+
+@login_required
 def report_delete(request, report_id):
 
-    report = Report.objects.get(
+    report = get_object_or_404(
+        Report,
         id=report_id,
         user=request.user
     )
@@ -160,6 +239,8 @@ def report_delete(request, report_id):
 
         report.delete()
 
+        messages.success(request, "Report deleted.")
+
         return redirect("report_list")
 
     return render(
@@ -167,6 +248,7 @@ def report_delete(request, report_id):
         "reports/report_delete.html",
         {"report": report}
     )
+
 
 @login_required
 def profile(request):
@@ -182,6 +264,8 @@ def profile(request):
 
         user.save()
 
+        messages.success(request, "Profile updated successfully.")
+
         return redirect("profile")
 
     return render(
@@ -191,6 +275,7 @@ def profile(request):
             "user": user
         }
     )
+
 
 @login_required
 def change_password(request):
@@ -210,6 +295,8 @@ def change_password(request):
                 request,
                 user
             )
+
+            messages.success(request, "Password changed successfully.")
 
             return redirect("profile")
 

@@ -12,3 +12,19 @@ class ReportForm(forms.ModelForm):
             "category",
             "status",
         ]
+        widgets = {
+            "raw_text": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "rows": 6,
+                "placeholder": "Paste the report text here...",
+            }),
+            "file": forms.ClearableFileInput(attrs={
+                "class": "sr-only",
+            }),
+            "category": forms.Select(attrs={
+                "class": "form-select",
+            }),
+            "status": forms.Select(attrs={
+                "class": "form-select",
+            }),
+        }

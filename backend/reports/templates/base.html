@@ -1,0 +1,127 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}AI Health Record Translator{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'reports/css/custom.css' %}">
+</head>
+
+<body class="bg-gray-50 min-h-screen flex flex-col text-gray-800">
+
+    {% if user.is_authenticated %}
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+        <nav class="max-w-6xl mx-auto px-4 sm:px-6" aria-label="Primary">
+            <div class="flex items-center justify-between h-16">
+
+                <a href="{% url 'report_list' %}" class="flex items-center gap-2 font-semibold text-gray-900">
+                    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white text-sm">
+                        AI
+                    </span>
+                    <span class="hidden sm:inline">AI Health Record Translator</span>
+                </a>
+
+                <div class="hidden md:flex items-center gap-1">
+                    <a href="{% url 'report_list' %}"
+                       class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition">
+                        Reports
+                    </a>
+                    <a href="{% url 'upload_report' %}"
+                       class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition">
+                        Upload Report
+                    </a>
+                    <a href="{% url 'profile' %}"
+                       class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition">
+                        Profile
+                    </a>
+                </div>
+
+                <div class="hidden md:flex items-center gap-3">
+                    <span class="text-sm text-gray-500">
+                        {{ user.username }}
+                    </span>
+                    <form method="POST" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition">
+                            Logout
+                        </button>
+                    </form>
+                </div>
+
+                <button id="mobile-menu-toggle" type="button"
+                        class="md:hidden inline-flex items-center justify-center p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+                        aria-controls="mobile-menu" aria-expanded="false" aria-label="Toggle navigation menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </button>
+
+            </div>
+
+            <div id="mobile-menu" hidden class="md:hidden pb-4 space-y-1">
+                <a href="{% url 'report_list' %}" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
+                    Reports
+                </a>
+                <a href="{% url 'upload_report' %}" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
+                    Upload Report
+                </a>
+                <a href="{% url 'profile' %}" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
+                    Profile
+                </a>
+                <div class="flex items-center justify-between px-3 pt-2 border-t border-gray-100 mt-2">
+                    <span class="text-sm text-gray-500">{{ user.username }}</span>
+                    <form method="POST" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="text-sm font-medium text-gray-600 hover:text-gray-900">
+                            Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </nav>
+    </header>
+    {% endif %}
+
+    <main class="flex-1 w-full">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 w-full">
+
+            {% if messages %}
+            <div class="space-y-3 mb-6">
+                {% for message in messages %}
+                <div data-alert
+                     class="flex items-start justify-between gap-4 rounded-lg border px-4 py-3 text-sm
+                            {% if message.tags == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-800
+                            {% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-800
+                            {% elif message.tags == 'warning' %}bg-amber-50 border-amber-200 text-amber-800
+                            {% else %}bg-blue-50 border-blue-200 text-blue-800{% endif %}"
+                     role="alert">
+                    <span>{{ message }}</span>
+                    <button type="button" data-alert-dismiss aria-label="Dismiss message"
+                            class="shrink-0 text-current opacity-60 hover:opacity-100">
+                        &times;
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+
+        </div>
+    </main>
+
+    <footer class="border-t border-gray-200 bg-white">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-400">
+            <span>&copy; {% now "Y" %} AI Health Record Translator</span>
+            <span>Your health records are private and only visible to you.</span>
+        </div>
+    </footer>
+
+    <script src="{% static 'reports/js/app.js' %}"></script>
+</body>
+</html>
