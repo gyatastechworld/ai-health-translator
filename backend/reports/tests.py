@@ -8,6 +8,7 @@ from django.test import TestCase, override_settings
 
 from .extraction import ExtractionError, extract_text_from_report
 from .models import Report, Translation
+from .services import translate_report
 
 
 class ReportOwnershipTest(TestCase):
@@ -407,27 +408,21 @@ class TranslateReportViewTests(TestCase):
             "limitations": [],
         })
 
-    def test_owner_can_translate_report(self):
+    def test_owner_can_queue_translation(self):
 
         self.client.login(
             username="translateowner",
             password="password123",
         )
 
-        with patch(
-            "reports.services.generate_response",
-            return_value=self._valid_ai_response(),
-        ):
+        with patch("reports.views.process_report.delay") as mock_delay:
+            mock_delay.return_value.id = "fake-task-id-1"
             response = self.client.post(
                 f"/reports/{self.report.id}/translate/"
             )
 
         self.assertRedirects(response, f"/reports/{self.report.id}/")
-
-        translation = Translation.objects.get(report=self.report)
-
-        self.assertEqual(translation.processing_status, "done")
-        self.assertEqual(translation.summary, "Test summary.")
+        mock_delay.assert_called_once_with(self.report.id)
 
     def test_other_user_cannot_translate_report(self):
 
@@ -447,6 +442,12 @@ class TranslateReportViewTests(TestCase):
         )
 
     def test_translate_with_no_text_does_not_crash(self):
+        # The view no longer checks for text before queuing - that
+        # validation happens inside translate_report(), inside the
+        # worker. The view's own job is just to reset the Translation
+        # row to "pending" synchronously and queue the task; it should
+        # do that without crashing even when there's nothing to
+        # translate yet.
 
         empty_report = Report.objects.create(
             user=self.owner,
@@ -459,33 +460,269 @@ class TranslateReportViewTests(TestCase):
             password="password123",
         )
 
-        response = self.client.post(
-            f"/reports/{empty_report.id}/translate/"
-        )
+        with patch("reports.views.process_report.delay") as mock_delay:
+            mock_delay.return_value.id = "fake-task-id-no-text"
+            response = self.client.post(
+                f"/reports/{empty_report.id}/translate/"
+            )
 
         self.assertRedirects(response, f"/reports/{empty_report.id}/")
 
-        self.assertFalse(
-            Translation.objects.filter(report=empty_report).exists()
-        )
+        translation = Translation.objects.get(report=empty_report)
+        self.assertEqual(translation.processing_status, "pending")
 
-    def test_provider_failure_is_caught_not_a_500(self):
+    def test_duplicate_posts_queue_a_task_each_time(self):
 
         self.client.login(
             username="translateowner",
             password="password123",
         )
 
-        with patch(
-            "reports.services.generate_response",
-            side_effect=RuntimeError("upstream boom"),
-        ):
+        with patch("reports.views.process_report.delay") as mock_delay:
+            mock_delay.return_value.id = "fake-task-id-2"
+            self.client.post(f"/reports/{self.report.id}/translate/")
+            self.client.post(f"/reports/{self.report.id}/translate/")
+
+        self.assertEqual(mock_delay.call_count, 2)
+
+    def test_first_click_shows_processing_before_worker_creates_translation(self):
+        # Regression test: the Celery worker runs translate_report()
+        # asynchronously, so the view itself resets the Translation row
+        # to "pending" synchronously, in the same request as queuing
+        # the task, before the worker ever touches it. The very first
+        # page the user sees must show the processing state (and keep
+        # polling), not "Translation not started yet." with a
+        # re-clickable button.
+
+        self.client.login(
+            username="translateowner",
+            password="password123",
+        )
+
+        with patch("reports.views.process_report.delay") as mock_delay:
+            mock_delay.return_value.id = "fake-task-id-3"
             response = self.client.post(
-                f"/reports/{self.report.id}/translate/"
+                f"/reports/{self.report.id}/translate/",
+                follow=True,
             )
 
-        self.assertRedirects(response, f"/reports/{self.report.id}/")
-
         translation = Translation.objects.get(report=self.report)
+        self.assertEqual(translation.processing_status, "pending")
 
-        self.assertEqual(translation.processing_status, "failed")
+        content = response.content.decode()
+
+        self.assertIn("data-translation-poll", content)
+        self.assertIn("Translation pending", content)
+        self.assertNotIn("Translation not started yet.", content)
+
+    def test_status_endpoint_reports_no_translation(self):
+
+        self.client.login(
+            username="translateowner",
+            password="password123",
+        )
+
+        response = self.client.get(
+            f"/reports/{self.report.id}/translate/status/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"processing_status": "", "error_message": ""},
+        )
+
+    def test_status_endpoint_reports_current_translation_state(self):
+
+        Translation.objects.create(
+            report=self.report,
+            processing_status="processing",
+        )
+
+        self.client.login(
+            username="translateowner",
+            password="password123",
+        )
+
+        response = self.client.get(
+            f"/reports/{self.report.id}/translate/status/"
+        )
+
+        self.assertEqual(
+            response.json()["processing_status"],
+            "processing",
+        )
+
+    def test_status_endpoint_never_queues_a_task(self):
+
+        Translation.objects.create(
+            report=self.report,
+            processing_status="pending",
+        )
+
+        self.client.login(
+            username="translateowner",
+            password="password123",
+        )
+
+        with patch("reports.views.process_report.delay") as mock_delay:
+            self.client.get(
+                f"/reports/{self.report.id}/translate/status/"
+            )
+
+        mock_delay.assert_not_called()
+
+    def test_other_user_cannot_read_translation_status(self):
+
+        Translation.objects.create(
+            report=self.report,
+            processing_status="done",
+            summary="Secret summary",
+        )
+
+        self.client.login(
+            username="translateother",
+            password="password123",
+        )
+
+        response = self.client.get(
+            f"/reports/{self.report.id}/translate/status/"
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class SourceTextPriorityTests(TestCase):
+
+    def setUp(self):
+
+        User = get_user_model()
+
+        self.user = User.objects.create_user(
+            username="prioritytestuser",
+            password="password123",
+        )
+
+    def _valid_ai_response(self):
+
+        return json.dumps({
+            "summary": "ok",
+            "key_findings": [],
+            "medical_terms": [],
+            "reported_values": [],
+            "questions_for_doctor": [],
+            "limitations": [],
+        })
+
+    def test_upload_extracts_text_even_when_raw_text_is_present(self):
+
+        import pymupdf
+
+        doc = pymupdf.open()
+        page = doc.new_page()
+        page.insert_text(
+            (72, 72),
+            "Haemoglobin 9.8 g/dL Low Reference 13.0-17.0 g/dL",
+        )
+        pdf_bytes = doc.tobytes()
+        doc.close()
+
+        self.client.login(
+            username="prioritytestuser",
+            password="password123",
+        )
+
+        response = self.client.post(
+            "/upload/",
+            {
+                "raw_text": "Blood test report",
+                "category": "blood_test",
+                "status": "uploaded",
+                "file": SimpleUploadedFile(
+                    "sample_blood_test_report.pdf",
+                    pdf_bytes,
+                    content_type="application/pdf",
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+        report = Report.objects.get(user=self.user)
+
+        self.assertEqual(report.raw_text, "Blood test report")
+        self.assertIn("Haemoglobin", report.extracted_text)
+
+    def test_translate_prefers_extracted_text_when_file_present(self):
+
+        report = Report.objects.create(
+            user=self.user,
+            category="blood_test",
+            status="uploaded",
+            raw_text="Blood test report",
+            extracted_text="Haemoglobin 9.8 g/dL Low Reference 13.0-17.0 g/dL",
+            file=SimpleUploadedFile(
+                "sample_blood_test_report.pdf",
+                b"%PDF-1.4 fake",
+                content_type="application/pdf",
+            ),
+        )
+
+        with patch(
+            "reports.services.generate_response",
+            return_value=self._valid_ai_response(),
+        ) as mock_generate:
+            translate_report(report)
+
+        sent_messages = mock_generate.call_args[0][0]
+        user_message_content = sent_messages[1]["content"]
+
+        self.assertIn("Haemoglobin 9.8 g/dL", user_message_content)
+        self.assertNotIn("Blood test report", user_message_content)
+
+    def test_translate_falls_back_to_raw_text_when_no_file(self):
+
+        report = Report.objects.create(
+            user=self.user,
+            category="blood_test",
+            status="uploaded",
+            raw_text="Haemoglobin 9.8 g/dL",
+        )
+
+        with patch(
+            "reports.services.generate_response",
+            return_value=self._valid_ai_response(),
+        ) as mock_generate:
+            translate_report(report)
+
+        sent_messages = mock_generate.call_args[0][0]
+        user_message_content = sent_messages[1]["content"]
+
+        self.assertIn("Haemoglobin 9.8 g/dL", user_message_content)
+
+    def test_translate_falls_back_to_raw_text_when_extraction_failed(self):
+
+        report = Report.objects.create(
+            user=self.user,
+            category="blood_test",
+            status="failed",
+            raw_text="Manually typed: Haemoglobin 9.8 g/dL",
+            extracted_text="",
+            file=SimpleUploadedFile(
+                "scan.pdf",
+                b"%PDF-1.4 fake",
+                content_type="application/pdf",
+            ),
+        )
+
+        with patch(
+            "reports.services.generate_response",
+            return_value=self._valid_ai_response(),
+        ) as mock_generate:
+            translate_report(report)
+
+        sent_messages = mock_generate.call_args[0][0]
+        user_message_content = sent_messages[1]["content"]
+
+        self.assertIn("Manually typed: Haemoglobin 9.8 g/dL", user_message_content)

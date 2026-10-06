@@ -121,11 +121,12 @@ def translate_report(report):
     Run the complete AI translation pipeline for a report.
     """
 
-    # A report's text can come from either source: raw_text is what the
-    # user typed/pasted themselves, extracted_text is what the file
-    # extraction pipeline pulled from an uploaded PDF/image. Prefer the
-    # user's own text when both exist.
-    source_text = report.raw_text.strip() or report.extracted_text.strip()
+    if report.file and report.extracted_text.strip():
+        source_text = report.extracted_text.strip()
+    elif report.raw_text.strip():
+        source_text = report.raw_text.strip()
+    else:
+        source_text = ""
 
     if not source_text:
         raise ValueError("Report does not contain text to process.")

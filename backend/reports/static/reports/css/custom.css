@@ -35,6 +35,21 @@
     color: #b91c1c;
 }
 
+.status-badge--pending {
+    background-color: #f3f4f6;
+    color: #4b5563;
+}
+
+.status-badge--processing {
+    background-color: #fffbeb;
+    color: #b45309;
+}
+
+.status-badge--done {
+    background-color: #ecfdf5;
+    color: #047857;
+}
+
 .form-input,
 .form-select,
 .form-textarea {

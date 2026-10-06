@@ -1,5 +1,7 @@
 // Minimal, progressive-enhancement-only JS. No framework, no build step.
 
+var pollingActive = false;
+
 document.addEventListener("DOMContentLoaded", function () {
     // Mobile navigation toggle
     var toggle = document.getElementById("mobile-menu-toggle");
@@ -60,4 +62,63 @@ document.addEventListener("DOMContentLoaded", function () {
                 '</span>';
         });
     });
+
+    var pollTarget = document.querySelector("[data-translation-poll]");
+    if (pollTarget && !pollingActive) {
+        pollingActive = true;
+
+        var statusUrl = pollTarget.dataset.statusUrl;
+        var messageEl = document.querySelector("[data-processing-message]");
+
+        var PROCESSING_MESSAGES = [
+            "Reading your report…",
+            "Looking at the values…",
+            "Putting it in plain language…",
+            "Almost done…",
+        ];
+        var MAX_POLL_ATTEMPTS = 60;
+        var POLL_INTERVAL_MS = 3000;
+
+        var attemptCount = 0;
+        var messageIndex = 0;
+
+        var pollTimer = setInterval(function () {
+            attemptCount += 1;
+
+            if (messageEl && messageIndex < PROCESSING_MESSAGES.length - 1) {
+                messageIndex += 1;
+                messageEl.textContent = PROCESSING_MESSAGES[messageIndex];
+            }
+
+            if (attemptCount > MAX_POLL_ATTEMPTS) {
+                clearInterval(pollTimer);
+                pollingActive = false;
+
+                if (messageEl) {
+                    messageEl.textContent =
+                        "This is taking longer than expected. Please try again.";
+                }
+
+                return;
+            }
+
+            fetch(statusUrl, {
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            })
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (
+                        data.processing_status === "done" ||
+                        data.processing_status === "failed"
+                    ) {
+                        clearInterval(pollTimer);
+                        pollingActive = false;
+                        window.location.reload();
+                    }
+                })
+                .catch(function () {});
+        }, POLL_INTERVAL_MS);
+    }
 });

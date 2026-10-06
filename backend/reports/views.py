@@ -1,26 +1,27 @@
+
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.paginator import Paginator
 
 from .extraction import extract_text_from_report, ExtractionError
 from .forms import ReportForm
-from .models import Report
-from .services import translate_report
+from .models import Report, Translation
+from .tasks import process_report
 
 
 def _run_extraction(request, report):
     """
     Attempt to populate report.extracted_text from its attached file.
 
-    Skipped when there's no file, or when the user already pasted
-    their own report text - we never want an automated OCR/LLM guess
-    to silently override text a person typed themselves.
+    Skipped when there's no file, or when extracted_text is already
+    populated. Never touches report.raw_text.
     """
 
-    if not report.file or report.raw_text.strip():
+    if not report.file or report.extracted_text.strip():
         return
 
     try:
@@ -159,11 +160,10 @@ def report_update(request, report_id):
                 old_file.delete(save=False)
 
             if file_changed:
-                # The previous extracted_text belonged to the old file -
-                # it no longer describes what's attached now.
                 updated_report.extracted_text = ""
                 updated_report.save(update_fields=["extracted_text"])
-                _run_extraction(request, updated_report)
+
+            _run_extraction(request, updated_report)
 
             if updated_report.status != "failed":
                 messages.success(request, "Report updated successfully.")
@@ -200,27 +200,60 @@ def translate_report_view(request, report_id):
 
     if request.method == "POST":
 
-        try:
-            translate_report(report)
-            messages.success(request, "Report translated successfully.")
+        Translation.objects.update_or_create(
+            report=report,
+            defaults={"processing_status": "pending", "error_message": ""},
+        )
 
-        except ValueError as exc:
-            # No text available to translate (e.g. extraction never ran
-            # and nothing was typed in manually).
-            messages.error(request, str(exc))
+        task = process_report.delay(report.id)
 
-        except Exception:
-            # translate_report() already recorded the details on the
-            # Translation object (processing_status="failed" +
-            # error_message) before re-raising, so we just need to stop
-            # this from becoming a 500 and tell the user something went
-            # wrong.
-            messages.error(
-                request,
-                "Translation failed. Please try again in a moment."
-            )
+        report.task_id = task.id
+        report.save(update_fields=["task_id"])
 
-    return redirect("report_detail", report_id=report.id)
+        messages.success(
+            request,
+            "Report translation has started."
+        )
+
+    return redirect(
+        "report_detail",
+        report_id=report.id
+    )
+    
+@login_required
+def report_status_view(request, report_id):
+
+    report = get_object_or_404(
+        Report,
+        id=report_id,
+        user=request.user
+    )
+
+    return JsonResponse({
+        "status": report.status,
+        "has_translation": hasattr(report, "translation"),
+    })
+
+
+@login_required
+def translate_status_view(request, report_id):
+
+    report = get_object_or_404(
+        Report,
+        id=report_id,
+        user=request.user
+    )
+
+    if hasattr(report, "translation"):
+        return JsonResponse({
+            "processing_status": report.translation.processing_status,
+            "error_message": report.translation.error_message,
+        })
+
+    return JsonResponse({
+        "processing_status": "",
+        "error_message": "",
+    })
 
 
 @login_required

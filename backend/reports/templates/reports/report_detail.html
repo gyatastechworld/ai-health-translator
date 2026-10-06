@@ -89,7 +89,12 @@
         </div>
 
         <!-- AI Explanation -->
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mt-6">
+        {% with translation_status=report.translation.processing_status|default:"" %}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 sm:p-8 mt-6"
+             {% if translation_status == "pending" or translation_status == "processing" or translation_status == "" and report.task_id %}
+             data-translation-poll="{{ translation_status|default:"processing" }}"
+             data-status-url="{% url 'translate_status' report.id %}"
+             {% endif %}>
 
             <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div>
@@ -102,21 +107,46 @@
                     </p>
                 </div>
 
-                {% if report.raw_text or report.extracted_text %}
-                <form method="POST" action="{% url 'translate_report' report.id %}"
-                      data-loading-submit data-loading-text="Translating...">
-                    {% csrf_token %}
-                    <button type="submit"
-                            class="px-4 py-2.5 rounded-lg text-sm font-medium text-white
-                                   bg-indigo-600 hover:bg-indigo-700 transition">
-                        {% if report.translation and report.translation.processing_status == "done" %}
-                            Re-generate Explanation
+                <div class="flex items-center gap-3">
+
+                    {% if translation_status %}
+                    <span class="status-badge status-badge--{{ translation_status }}">
+                        {{ report.translation.get_processing_status_display }}
+                    </span>
+                    {% endif %}
+
+                    {% if report.raw_text or report.extracted_text %}
+                        {% if translation_status == "pending" or translation_status == "processing" or translation_status == "" and report.task_id %}
+                        <button type="button" disabled
+                                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm
+                                       font-medium text-white bg-indigo-300 cursor-not-allowed">
+                            <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg"
+                                 fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            Processing
+                        </button>
                         {% else %}
-                            Translate Report
+                        <form method="POST" action="{% url 'translate_report' report.id %}"
+                              data-loading-submit data-loading-text="Starting...">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="px-4 py-2.5 rounded-lg text-sm font-medium text-white
+                                           bg-indigo-600 hover:bg-indigo-700 transition">
+                                {% if translation_status == "done" %}
+                                    Translate Again
+                                {% elif translation_status == "failed" %}
+                                    Try Again
+                                {% else %}
+                                    Translate Report
+                                {% endif %}
+                            </button>
+                        </form>
                         {% endif %}
-                    </button>
-                </form>
-                {% endif %}
+                    {% endif %}
+
+                </div>
             </div>
 
             {% if not report.raw_text and not report.extracted_text %}
@@ -125,7 +155,7 @@
                     Add report text, or upload a file, before generating an explanation.
                 </p>
 
-            {% elif report.translation and report.translation.processing_status == "done" %}
+            {% elif translation_status == "done" %}
 
                 <div class="space-y-6">
 
@@ -211,21 +241,40 @@
 
                 </div>
 
-            {% elif report.translation and report.translation.processing_status == "failed" %}
+            {% elif translation_status == "processing" or translation_status == "" and report.task_id %}
+
+                <div class="rounded-lg bg-amber-50 border border-amber-100 p-4 flex items-center gap-3 text-sm text-amber-800">
+                    <svg class="animate-spin h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg"
+                         fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <span data-processing-message>Reading your report&hellip;</span>
+                </div>
+
+            {% elif translation_status == "pending" %}
+
+                <div class="rounded-lg bg-gray-50 border border-gray-100 p-4 text-sm text-gray-600">
+                    Translation pending &mdash; waiting to be processed.
+                </div>
+
+            {% elif translation_status == "failed" %}
 
                 <div class="rounded-lg bg-red-50 border border-red-100 p-4 text-sm text-red-700">
-                    {{ report.translation.error_message|default:"The last translation attempt failed." }}
+                    <p class="font-medium mb-1">Translation failed</p>
+                    <p>{{ report.translation.error_message|default:"Something went wrong while generating the explanation." }}</p>
                 </div>
 
             {% else %}
 
                 <p class="text-sm text-gray-400 italic">
-                    No explanation has been generated for this report yet.
+                    Translation not started yet.
                 </p>
 
             {% endif %}
 
         </div>
+        {% endwith %}
 
     </div>
 

@@ -41,6 +41,12 @@ urlpatterns = [
     ),
 
     path(
+        "reports/<int:report_id>/translate/status/",
+        views.translate_status_view,
+        name="translate_status"
+    ),
+
+    path(
         "profile/",
         views.profile,
         name="profile"
@@ -51,4 +57,10 @@ urlpatterns = [
         views.change_password,
         name="change_password"
     ),
+    path(
+    "reports/<int:report_id>/status/",
+    views.report_status_view,
+    name="report_status",
+    ),
+   
 ]

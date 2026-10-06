@@ -50,6 +50,10 @@ class Report(models.Model):
         choices=STATUS_CHOICES,
         default="uploaded"
     )
+    task_id = models.CharField(
+    max_length=255,
+    blank=True
+    )
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
 

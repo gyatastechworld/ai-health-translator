@@ -15,11 +15,102 @@ def generate_response(messages):
         model="openai/gpt-oss-120b",
         messages=messages,
         temperature=0,
-        response_format={"type": "json_object"},
+        max_tokens=12000,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "medical_report_translation",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {
+                            "type": "string"
+                        },
+                        "key_findings": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "medical_terms": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "term": {
+                                        "type": "string"
+                                    },
+                                    "explanation": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "term",
+                                    "explanation"
+                                ],
+                                "additionalProperties": False
+                            }
+                        },
+                        "reported_values": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "value": {
+                                        "type": "string"
+                                    },
+                                    "unit": {
+                                        "type": "string"
+                                    },
+                                    "reference_range": {
+                                        "type": "string"
+                                    },
+                                    "report_context": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "value",
+                                    "unit",
+                                    "reference_range",
+                                    "report_context"
+                                ],
+                                "additionalProperties": False
+                            }
+                        },
+                        "questions_for_doctor": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "limitations": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "required": [
+                        "summary",
+                        "key_findings",
+                        "medical_terms",
+                        "reported_values",
+                        "questions_for_doctor",
+                        "limitations"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        },
     )
 
     return response.choices[0].message.content
-
 
 def generate_vision_response(base64_image, mime_type="image/png"):
     """
