@@ -6,6 +6,8 @@ AI processing runs asynchronously via Celery + Redis, so uploading and translati
 
 > **This is not a medical diagnostic tool.** See [Medical Safety](#medical-safety).
 
+![Report dashboard](docs/screenshots/2_dashboard.png)
+
 ---
 
 ## Table of Contents
@@ -445,4 +447,22 @@ This project is an informational health-record translation tool. It is not a med
 
 ## Screenshots
 
-Screenshots will be added as the UI evolves.
+### Login
+
+![Login](docs/screenshots/1_login.png)
+
+### Report Dashboard
+
+Search, category/status filters, pagination, and per-report actions.
+
+![Report dashboard](docs/screenshots/2_dashboard.png)
+
+### Report Detail — Completed AI Explanation
+
+Summary, key findings, explained medical terms, reported values with reference ranges, questions for your doctor, and stated limitations.
+
+![Report detail with AI explanation](docs/screenshots/3_report_detail.png)
+
+### Upload Report
+
+![Upload report](docs/screenshots/4_upload.png)
